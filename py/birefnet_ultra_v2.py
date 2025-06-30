@@ -193,10 +193,12 @@ class LS_LoadBiRefNetModelV2:
         if TRT_AVAILABLE and os.path.exists(trt_folder):
             trt_files = glob.glob(os.path.join(trt_folder, '*.trt'))
             for path in trt_files:
+                # 顯示名稱可以自訂，例如 'TRT:模型檔案名'，方便在UI中辨識
                 model_name = f"TRT:{os.path.basename(path)}"
                 if model_name not in model_list:
                     model_list.append(model_name)
-                    cls.birefnet_model_repos[model_name] = path  # 加入對應路徑
+                    # 關鍵：將模型顯示名稱與其【完整本地路徑】對應起來
+                    cls.birefnet_model_repos[model_name] = path
 
         return {
             "required": {
@@ -210,37 +212,46 @@ class LS_LoadBiRefNetModelV2:
     CATEGORY = '😺dzNodes/LayerMask'
 
     def load_birefnet_model(self, version):
-        if version == "BiRefNet-TRT (local)":
-            trt_model_path = os.path.join(folder_paths.models_dir, 'BiRefNet', 'trt', 'birefnet_from_shared.trt')
-            if not TRT_AVAILABLE:
-                raise ImportError("TensorRT library is not installed. Please install it to use the TRT model.")
-            if not os.path.exists(trt_model_path):
-                raise FileNotFoundError(f"TRT model not found at: {trt_model_path}")
-
-            log(f"Loading BiRefNet TensorRT model from {trt_model_path}...")
-            self.model = TRTWrapper(engine_path=trt_model_path)
-            log("TensorRT model loaded successfully.")
-            return (self.model,)
-
-        birefnet_path = os.path.join(folder_paths.models_dir, 'BiRefNet')
-        os.makedirs(birefnet_path, exist_ok=True)
-        model_path = os.path.join(birefnet_path, version)
-
+        # 處理舊版的 BiRefNet-General (為了向後相容)
         if version == "BiRefNet-General":
-            old_birefnet_path = os.path.join(birefnet_path, 'pth')
+            old_birefnet_path = os.path.join(folder_paths.models_dir, 'BiRefNet', 'pth')
             old_model = "BiRefNet-general-epoch_244.pth"
             old_model_path = os.path.join(old_birefnet_path, old_model)
             if os.path.exists(old_model_path):
                 from .BiRefNet_v2.models.birefnet import BiRefNet
                 from .BiRefNet_v2.utils import check_state_dict
                 self.birefnet = BiRefNet(bb_pretrained=False)
-                self.state_dict = torch.load(old_model_path, map_location='cpu', weights_only=True)
-                self.state_dict = check_state_dict(self.state_dict)
-                self.birefnet.load_state_dict(self.state_dict)
+                state_dict = torch.load(old_model_path, map_location='cpu', weights_only=True)
+                state_dict = check_state_dict(state_dict)
+                self.birefnet.load_state_dict(state_dict)
                 return (self.birefnet,)
-        elif not os.path.exists(model_path):
-            log(f"Downloading {version} model...")
-            repo_id = self.birefnet_model_repos[version]
+
+        # 從字典中獲取與 'version' 名稱對應的 repo_id 或 file_path
+        identifier = self.birefnet_model_repos.get(version)
+        if not identifier:
+            raise ValueError(f"Model '{version}' not found in repository mapping. Please check the name and file location.")
+
+        # +++ 核心修改：根據您的建議，改為判斷檔案路徑是否以 .trt 結尾 +++
+        if isinstance(identifier, str) and identifier.endswith(".trt"):
+            if not TRT_AVAILABLE:
+                raise ImportError("TensorRT library is not installed. Please install it to use the TRT model.")
+
+            trt_model_path = identifier  # identifier 本身就是完整的路徑
+            if not os.path.exists(trt_model_path):
+                raise FileNotFoundError(f"TRT model file not found. Expected at: {trt_model_path}")
+
+            log(f"Loading BiRefNet TensorRT model from {trt_model_path}...")
+            self.model = TRTWrapper(engine_path=trt_model_path)
+            log("TensorRT model loaded successfully.")
+            return (self.model,)
+
+        # 如果不是 .trt 檔案，則假定為 Hugging Face 模型並進行下載/載入
+        birefnet_path = os.path.join(folder_paths.models_dir, 'BiRefNet')
+        model_path = os.path.join(birefnet_path, version)
+
+        if not os.path.exists(model_path):
+            log(f"Downloading {version} model from Hugging Face repo: {identifier}...")
+            repo_id = identifier  # identifier 是 Hugging Face 的 repo_id
             from huggingface_hub import snapshot_download
             snapshot_download(repo_id=repo_id, local_dir=model_path, ignore_patterns=["*.md", "*.txt"])
 
