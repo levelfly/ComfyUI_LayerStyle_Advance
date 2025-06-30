@@ -186,14 +186,17 @@ class LS_LoadBiRefNetModelV2:
     }
 
     @classmethod
-    def INPUT_TYPES(s):
-        model_list = list(s.birefnet_model_repos.keys())
+    def INPUT_TYPES(cls):
+        model_list = list(cls.birefnet_model_repos.keys())
 
-        # 建議將此路徑改為可配置或自動搜尋，以增加靈活性
-        s.trt_model_path = os.path.join(folder_paths.models_dir, 'BiRefNet', 'trt', 'birefnet_from_shared.trt')
-        if TRT_AVAILABLE and os.path.exists(s.trt_model_path):
-            if "BiRefNet-TRT (local)" not in model_list:
-                model_list.append("BiRefNet-TRT (local)")
+        # 自動搜尋所有 .trt 檔案
+        trt_folder = os.path.join(folder_paths.models_dir, 'BiRefNet', 'trt')
+        if TRT_AVAILABLE and os.path.exists(trt_folder):
+            trt_files = glob.glob(os.path.join(trt_folder, '*.trt'))
+            for path in trt_files:
+                model_name = f"TRT:{os.path.basename(path)}"
+                if model_name not in model_list:
+                    model_list.append(model_name)
 
         return {
             "required": {
