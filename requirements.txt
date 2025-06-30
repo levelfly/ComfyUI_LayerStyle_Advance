@@ -38,3 +38,4 @@ pyzbar
 psd-tools
 zhipuai
 openai
+nvidia-tensorrt>=99.0.0
