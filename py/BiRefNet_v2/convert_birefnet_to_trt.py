@@ -1,5 +1,3 @@
-# convert_birefnet_to_trt.py (Simplified version for pre-existing ONNX file)
-
 import tensorrt as trt
 import os
 
@@ -8,8 +6,8 @@ import os
 ONNX_PATH = '/root/ComfyUI/models/BiRefNet/onnx/BiRefNet-general-epoch_244.onnx' # <--- 請務必確認這個路徑是正確的！
 
 # 2. 輸出 TensorRT 引擎的路徑
-OUTPUT_DIR = os.path.dirname(ONNX_PATH)
-ENGINE_NAME = 'birefnet_from_shared.trt'
+# 注意：腳本會自動建立 'trt' 資料夾
+ENGINE_NAME = 'BiRefNet-general-epoch_244.trt'
 ENGINE_PATH = os.path.join('/root/ComfyUI/models/BiRefNet/trt/', ENGINE_NAME)
 
 # 3. 推論與工作空間設定
@@ -59,6 +57,15 @@ if serialized_engine is None:
     exit()
 
 print("Engine built successfully!")
+
+# --- 已修復的部分 ---
+# 在寫入檔案前，先取得目標資料夾的路徑
+output_dir = os.path.dirname(ENGINE_PATH)
+# 建立目標資料夾，如果它不存在的話 (exist_ok=True 避免在資料夾已存在時報錯)
+os.makedirs(output_dir, exist_ok=True)
+print(f"Ensured output directory exists: {output_dir}")
+# --- 修復結束 ---
+
 
 with open(ENGINE_PATH, "wb") as f:
     f.write(serialized_engine)
